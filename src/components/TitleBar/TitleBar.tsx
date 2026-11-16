@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore, needsSavePrompt } from '../../stores/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  FileCode, X, FileDown, Plus, Save, FileUp, FolderOpen, Sidebar as SidebarIcon, Layout, RotateCw, Minus, Square, Settings, Focus, Clock,
+  FileCode, X, FileDown, Plus, Save, FileUp, FolderOpen, Sidebar as SidebarIcon, Layout, RotateCw, Minus, Square, Settings, Focus, Clock, Pin,
 } from 'lucide-react';
 import { exportActiveTabToPdf, exportActiveTabToHtml, exportActiveTabToDocx, exportActiveTabToImage } from '../../utils/exportPdf';
 import { isNewerVersion } from '../../utils/version';
@@ -76,10 +76,15 @@ const TitleBarImpl: React.FC = () => {
 
   const hasUpdate = isNewerVersion(updateStatus.latestVersion, window.api.appVersion);
   const [activeMenu, setActiveMenu] = useState<MenuId | null>(null);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
   const activeTab = tabs.find(t => t.id === activeTabId);
   const tabsRef = useRef<HTMLDivElement>(null);
   const isMac = window.api.app.platform === 'darwin';
+
+  useEffect(() => {
+    void window.api.app.isAlwaysOnTop().then(setAlwaysOnTop);
+  }, []);
 
   // 自动滚动激活标签到可见区域
   useEffect(() => {
@@ -90,6 +95,10 @@ const TitleBarImpl: React.FC = () => {
 
   /** 执行菜单动作并收起菜单 */
   const run = (fn: () => void) => () => { setActiveMenu(null); fn(); };
+  const toggleAlwaysOnTop = () => {
+    const next = !alwaysOnTop;
+    void window.api.app.setAlwaysOnTop(next).then(() => setAlwaysOnTop(next)).catch((error) => console.error('切换窗口置顶失败', error));
+  };
 
   // 点菜单以外的任何地方、按 Esc、窗口失焦，菜单都收起来。
   // 不能用「铺满窗口的透明背板」来接点击：标题栏有毛玻璃效果（backdrop-filter），它里面的 position: fixed
@@ -160,6 +169,8 @@ const TitleBarImpl: React.FC = () => {
         </Menu>
 
         <Menu id="view" label="视图" width={200}>
+          <MenuItem icon={<Pin size={14} />} label={alwaysOnTop ? '取消窗口置顶' : '窗口置顶'} dim={!alwaysOnTop} onClick={run(toggleAlwaysOnTop)} />
+          <MenuDivider />
           <MenuItem icon={<SidebarIcon size={14} />} label={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'} hint="⌘\" onClick={run(toggleSidebar)} />
           <MenuItem icon={<Focus size={14} />} label={focusMode ? '退出专注模式' : '专注模式'} hint="⇧⌘." onClick={run(toggleFocusMode)} />
           <MenuDivider />
@@ -213,6 +224,10 @@ const TitleBarImpl: React.FC = () => {
       </div>
 
       {tabMenu && <TabContextMenu {...tabMenu} onDone={() => setTabMenu(null)} />}
+
+      <button className="titlebar-new-file" onClick={createNewFile} title={`新建文档（${isMac ? '⌘N' : 'Ctrl+N'}）`} aria-label="新建文档">
+        <Plus size={16} />
+      </button>
 
       {/* Windows 窗口控制按钮 */}
       {!isMac && (

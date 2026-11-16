@@ -17,6 +17,7 @@
         "title": "iML 编辑器",
         "width": 1024,
         "height": 768,
+        "center": true,
         "minWidth": 800,
         "minHeight": 600,
         "dragDropEnabled": false

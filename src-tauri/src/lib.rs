@@ -23,6 +23,7 @@ use tauri::{
     AppHandle, Emitter, Manager, State,
 };
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_window_state::StateFlags;
 
 const DOC_EXTS: [&str; 5] = ["md", "markdown", "mdown", "mkd", "txt"];
 /// 翻最近的发布，由前端按 lite-v 前缀认出自己的版本（拆成独立仓库之前就是这个前缀，沿用）
@@ -540,6 +541,61 @@ fn dropped_paths(ticket: Option<String>) -> Vec<DroppedPath> {
         .collect()
 }
 
+/// Windows：从 GDI 枚举系统实际安装并可用的字体族，避免设置页只列手工维护的几个名字。
+#[cfg(windows)]
+mod win_fonts {
+    use std::collections::BTreeSet;
+
+    use windows::Win32::{
+        Foundation::LPARAM,
+        Graphics::Gdi::{CreateCompatibleDC, DeleteDC, EnumFontFamiliesExW, LOGFONTW, TEXTMETRICW, DEFAULT_CHARSET},
+    };
+
+    unsafe extern "system" fn collect_font(
+        logfont: *const LOGFONTW,
+        _text_metric: *const TEXTMETRICW,
+        _font_type: u32,
+        data: LPARAM,
+    ) -> i32 {
+        if logfont.is_null() || data.0 == 0 {
+            return 1;
+        }
+
+        let fonts = &mut *(data.0 as *mut BTreeSet<String>);
+        let face_name = &(*logfont).lfFaceName;
+        let length = face_name.iter().position(|unit| *unit == 0).unwrap_or(face_name.len());
+        let name = String::from_utf16_lossy(&face_name[..length]).trim().to_string();
+        if !name.is_empty() && !name.starts_with('@') {
+            fonts.insert(name);
+        }
+        1
+    }
+
+    pub fn list() -> Vec<String> {
+        let dc = unsafe { CreateCompatibleDC(None) };
+        if dc.0.is_null() {
+            return Vec::new();
+        }
+
+        let mut fonts = BTreeSet::new();
+        let mut query = LOGFONTW::default();
+        query.lfCharSet = DEFAULT_CHARSET;
+        unsafe {
+            EnumFontFamiliesExW(dc, &query, Some(collect_font), LPARAM(&mut fonts as *mut _ as isize), 0);
+            DeleteDC(dc);
+        }
+        fonts.into_iter().collect()
+    }
+}
+
+#[tauri::command]
+fn list_installed_fonts() -> Vec<String> {
+    #[cfg(windows)]
+    { return win_fonts::list(); }
+    #[cfg(not(windows))]
+    { Vec::new() }
+}
+
 /// Windows 的绿色版（解压就用，没经过安装程序）：检查更新时给的也该是绿色版。
 /// 安装程序会在程序旁边放一个 uninstall.exe，没有就是绿色版
 #[tauri::command]
@@ -1045,6 +1101,11 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
+                .build(),
+        )
         .manage(AppState::default())
         .register_asynchronous_uri_scheme_protocol("iml-asset", |_ctx, request, responder| {
             // 读盘放到别的线程去：一篇文档里几十张图不该卡住界面
@@ -1070,6 +1131,7 @@ pub fn run() {
             open_external,
             consume_pending_open_files,
             dropped_paths,
+            list_installed_fonts,
             is_portable,
             smoke_export_dir,
             settings_get,

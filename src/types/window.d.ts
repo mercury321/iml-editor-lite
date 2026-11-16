@@ -61,6 +61,9 @@ declare global {
         minimize: () => void;
         maximize: () => void;
         close: () => void;
+        isAlwaysOnTop: () => Promise<boolean>;
+        setAlwaysOnTop: (value: boolean) => Promise<void>;
+        getInstalledFonts?: () => Promise<string[]>;
         getSettings: () => Promise<any>;
         saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
         openSettings: () => void;

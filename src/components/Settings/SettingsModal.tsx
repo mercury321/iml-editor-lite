@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Moon, Sun, Monitor, Palette, Power, Save, Trash2, AlertTriangle, Coffee, Type, ImageDown, FileImage, Link2, SpellCheck, Captions } from 'lucide-react';
-import { useAppStore, THEME_PRESETS, EDITOR_FONTS, PAGE_WIDTHS, DEFAULT_EDITOR_PREFS, normalizeEditorPrefs, applyEditorPrefs, normalizeImageStorage, type EditorPrefs, type ImageStorage } from '../../stores/appStore';
+import { useAppStore, THEME_PRESETS, EDITOR_FONTS, COMMON_EDITOR_FONTS, PAGE_WIDTHS, DEFAULT_EDITOR_PREFS, normalizeEditorPrefs, applyEditorPrefs, normalizeImageStorage, type EditorPrefs, type ImageStorage } from '../../stores/appStore';
 import { useShallow } from 'zustand/react/shallow';
 
 type AppearanceMode = 'light' | 'dark' | 'system' | 'eye-protection';
@@ -28,6 +28,7 @@ export const SettingsModal: React.FC<Props> = ({ onClose }) => {
   const isMac = window.api.app.platform === 'darwin';
   const { setTheme, applyAppearance, loadSettings } = useAppStore(useShallow((s) => ({ setTheme: s.setTheme, applyAppearance: s.applyAppearance, loadSettings: s.loadSettings })));
   const isOpen = isStandalone || !!onClose;
+  const [installedFonts, setInstalledFonts] = useState<string[]>(COMMON_EDITOR_FONTS);
 
   const [local, setLocal] = useState({
     appearanceMode: 'light' as string,
@@ -45,6 +46,9 @@ export const SettingsModal: React.FC<Props> = ({ onClose }) => {
   // 从磁盘加载并预览
   useEffect(() => {
     if (!isOpen) return;
+    void window.api.app.getInstalledFonts?.().then((fonts) => {
+      if (fonts.length) setInstalledFonts(fonts);
+    }).catch((error) => console.error('读取系统字体失败', error));
     window.api.app.getSettings().then((settings: any) => {
       if (!settings) return;
       setLocal({
@@ -163,12 +167,46 @@ export const SettingsModal: React.FC<Props> = ({ onClose }) => {
                 <div className="settings-row">
                   <div>
                     <div className="settings-row__title">正文字体</div>
-                    <div className="settings-row__desc">富文本与预览的正文；代码始终用等宽字体</div>
+                    <div className="settings-row__desc">列出系统已安装字体，也可输入字体名称；代码始终用等宽字体</div>
                   </div>
-                  <select className="settings-select" value={local.editorPrefs.font} onChange={(e) => setPrefs({ font: e.target.value as EditorPrefs['font'] })}>
-                    {(Object.keys(EDITOR_FONTS) as EditorPrefs['font'][]).map((id) => <option key={id} value={id}>{EDITOR_FONTS[id].label}</option>)}
+                  <select
+                    className="settings-select"
+                    value={local.editorPrefs.font === 'custom' && local.editorPrefs.fontFamily ? `custom:${local.editorPrefs.fontFamily}` : local.editorPrefs.font}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.startsWith('custom:')) setPrefs({ font: 'custom', fontFamily: value.slice(7) });
+                      else setPrefs({ font: value as EditorPrefs['font'] });
+                    }}
+                  >
+                    <optgroup label="预设">
+                      {(Object.keys(EDITOR_FONTS) as EditorPrefs['font'][]).map((id) => <option key={id} value={id}>{EDITOR_FONTS[id].label}</option>)}
+                    </optgroup>
+                    <optgroup label="常用字体">
+                      {local.editorPrefs.font === 'custom' && local.editorPrefs.fontFamily && !COMMON_EDITOR_FONTS.includes(local.editorPrefs.fontFamily) && (
+                        <option value={`custom:${local.editorPrefs.fontFamily}`}>{local.editorPrefs.fontFamily}</option>
+                      )}
+                      {installedFonts.map((font) => <option key={font} value={`custom:${font}`}>{font}</option>)}
+                    </optgroup>
                   </select>
                 </div>
+                {local.editorPrefs.font === 'custom' && (
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row__title">其他字体名称</div>
+                      <div className="settings-row__desc">输入电脑上已安装的字体名称</div>
+                    </div>
+                    <input
+                      className="settings-select settings-font-input"
+                      list="common-editor-fonts"
+                      value={local.editorPrefs.fontFamily || ''}
+                      placeholder="例如：微软雅黑"
+                      onChange={(e) => setPrefs({ fontFamily: e.target.value })}
+                    />
+                    <datalist id="common-editor-fonts">
+                      {installedFonts.map((font) => <option key={font} value={font} />)}
+                    </datalist>
+                  </div>
+                )}
                 <div className="settings-divider" />
                 <div className="settings-row">
                   <div><div className="settings-row__title">字号</div></div>

@@ -333,6 +333,9 @@ export function createTauriApi(): WindowApi {
       minimize: () => { void getCurrentWindow().minimize(); },
       maximize: () => { void getCurrentWindow().toggleMaximize(); },
       close: () => { void getCurrentWindow().close(); },
+      isAlwaysOnTop: () => getCurrentWindow().isAlwaysOnTop().catch(() => false),
+      setAlwaysOnTop: (value) => getCurrentWindow().setAlwaysOnTop(value),
+      getInstalledFonts: () => invoke<string[]>('list_installed_fonts'),
       getSettings: () => invoke<any>('settings_get'),
       saveSettings: async (settings) => {
         try {

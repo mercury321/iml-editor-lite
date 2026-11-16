@@ -126,7 +126,8 @@ export type SidebarTab = 'files' | 'outline';
 
 /** 正文排版：字体、字号、行距、页宽（富文本与预览共用） */
 export interface EditorPrefs {
-  font: 'system' | 'serif' | 'kai' | 'mono';
+  font: 'system' | 'serif' | 'kai' | 'mono' | 'custom';
+  fontFamily?: string;
   fontSize: number;
   lineHeight: number;
   pageWidth: 'narrow' | 'medium' | 'wide' | 'full';
@@ -139,7 +140,15 @@ export const EDITOR_FONTS: Record<EditorPrefs['font'], { label: string; stack: s
   serif: { label: '宋体 / 衬线', stack: '"Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", "SimSun", Georgia, serif' },
   kai: { label: '楷体', stack: '"Kaiti SC", "STKaiti", "KaiTi", "BiauKai", serif' },
   mono: { label: '等宽', stack: 'var(--font-code)' },
+  custom: { label: '自定义字体', stack: 'var(--font-body)' },
 };
+
+/** 常见字体可直接选；也可以输入电脑上安装的任意字体名称 */
+export const COMMON_EDITOR_FONTS = [
+  'Microsoft YaHei UI', 'Microsoft YaHei', '等线', '宋体', '新宋体', '仿宋', '楷体', '黑体',
+  '思源黑体', '思源宋体', 'Noto Sans CJK SC', 'Noto Serif CJK SC', 'PingFang SC', '苹方',
+  'Arial', 'Georgia', 'Consolas',
+];
 
 export const PAGE_WIDTHS: Record<EditorPrefs['pageWidth'], { label: string; css: string }> = {
   narrow: { label: '窄', css: '700px' },
@@ -152,6 +161,7 @@ export function normalizeEditorPrefs(raw: any): EditorPrefs {
   const r = raw && typeof raw === 'object' ? raw : {};
   return {
     font: r.font in EDITOR_FONTS ? r.font : DEFAULT_EDITOR_PREFS.font,
+    fontFamily: typeof r.fontFamily === 'string' ? r.fontFamily.slice(0, 100).trim() : '',
     fontSize: Math.min(22, Math.max(13, Number(r.fontSize) || DEFAULT_EDITOR_PREFS.fontSize)),
     lineHeight: Math.min(2.4, Math.max(1.3, Number(r.lineHeight) || DEFAULT_EDITOR_PREFS.lineHeight)),
     pageWidth: r.pageWidth in PAGE_WIDTHS ? r.pageWidth : DEFAULT_EDITOR_PREFS.pageWidth,
@@ -161,7 +171,11 @@ export function normalizeEditorPrefs(raw: any): EditorPrefs {
 /** 把排版设置写成 CSS 变量（设置弹窗里拖动时实时预览也走这里） */
 export function applyEditorPrefs(prefs: EditorPrefs) {
   const root = document.documentElement;
-  root.style.setProperty('--editor-font', EDITOR_FONTS[prefs.font].stack);
+  const customFont = (prefs.fontFamily || '').replace(/[\\"\r\n\0]/g, ' ').trim();
+  const fontStack = prefs.font === 'custom' && customFont
+    ? `"${customFont}", var(--font-body)`
+    : EDITOR_FONTS[prefs.font].stack;
+  root.style.setProperty('--editor-font', fontStack);
   root.style.setProperty('--editor-font-size', `${prefs.fontSize}px`);
   root.style.setProperty('--editor-line-height', String(prefs.lineHeight));
   root.style.setProperty('--editor-page-width', PAGE_WIDTHS[prefs.pageWidth].css);
@@ -995,6 +1009,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
         if (typeof session.sidebarVisible === 'boolean') set({ sidebarVisible: session.sidebarVisible });
         if (session.sidebarTab === 'files' || session.sidebarTab === 'outline') set({ sidebarTab: session.sidebarTab });
+        if (typeof session.toolbarVisible === 'boolean') set({ toolbarVisible: session.toolbarVisible });
+        if (typeof session.statusBarVisible === 'boolean') set({ statusBarVisible: session.statusBarVisible });
 
         // 恢复 Recent Files
         if (session.recentFiles) {
@@ -1281,6 +1297,8 @@ function persistSession(state: AppState) {
     sidebarWidth: state.sidebarWidth,
     sidebarVisible: state.sidebarVisible,
     sidebarTab: state.sidebarTab,
+    toolbarVisible: state.toolbarVisible,
+    statusBarVisible: state.statusBarVisible,
     tabs: state.tabs.map(t => {
       const keepContent = (t.isDirty || t.id.startsWith('new-')) && t.content.length <= MAX_PERSISTED_CONTENT;
       return { id: t.id, title: t.title, isDirty: t.isDirty, mode: t.mode, ...(keepContent ? { content: t.content, diskSig: t.diskSig } : {}) };
@@ -1321,7 +1339,9 @@ useAppStore.subscribe((state, prevState) => {
     state.recentFiles !== prevState.recentFiles ||
     state.sidebarWidth !== prevState.sidebarWidth ||
     state.sidebarVisible !== prevState.sidebarVisible ||
-    state.sidebarTab !== prevState.sidebarTab;
+    state.sidebarTab !== prevState.sidebarTab ||
+    state.toolbarVisible !== prevState.toolbarVisible ||
+    state.statusBarVisible !== prevState.statusBarVisible;
   if (!shouldSave || !isMainWindow || sessionPersistDisabled) return;
   if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
   // 脏标签页的内容也会序列化，1s 防抖把连续打字合并成一次写入

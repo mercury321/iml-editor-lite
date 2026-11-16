@@ -18,6 +18,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "=2.4.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # 文件夹监听
@@ -42,7 +43,7 @@ objc2-foundation = { version = "0.3", features = ["NSGeometry", "NSString", "NSU
 # Windows：拖进来的文件的路径要从 WebView2 的文件对象上读。这两个库 Tauri 自己已经在用（同样的版本），不多带东西
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
-windows = "0.61"
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi"] }
 
 [profile.release]
 codegen-units = 1
