@@ -10,11 +10,12 @@
 }
 
 .tiptap-page {
+  --page-side-padding: clamp(16px, 5%, 40px);
   width: calc(100% - 64px);
-  max-width: var(--editor-page-width, 820px);
+  max-width: calc(var(--editor-column-width, 780px) + 2 * var(--page-side-padding));
   min-height: calc(100vh - 128px);
   margin: 32px 0;
-  padding: 60px 80px;
+  padding: 40px var(--page-side-padding);
   background-color: var(--bg-page);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 0 0 1px var(--border-subtle);
   border-radius: 4px;
@@ -34,7 +35,7 @@
   font-family: var(--editor-font, var(--font-body));
   font-size: var(--editor-font-size, 16px);
   color: var(--text-primary);
-  line-height: var(--editor-line-height, 1.6);
+  line-height: var(--editor-line-height, 1.75);
   width: 100%;
   flex: 1 0 auto; /* Allow full expansion and prohibit shrinking */
 }
@@ -52,6 +53,16 @@
   margin-bottom: 0.5em;
   font-size: var(--editor-font-size, 16px);
   color: var(--text-primary);
+}
+
+.tiptap-prosemirror > p:not(.is-empty) + p:not(.is-empty) {
+  margin-top: 0.75em;
+}
+
+/* 空段落保留紧凑的光标行。仅含占位符的段落才缩短行高。 */
+.tiptap-prosemirror > p.is-empty:not(.is-editor-empty) {
+  margin-block: 0;
+  line-height: 0.65;
 }
 
 .tiptap-prosemirror h1, 
@@ -788,8 +799,8 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 .md-pane--preview { background-color: var(--bg-surface); }
 .md-pane__header { height: 44px; min-height: 44px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; padding: 0 24px; color: var(--text-secondary); font-weight: 600; font-size: 13px; letter-spacing: 0.02em; }
 .md-pane__body { flex: 1; overflow: auto; }
-.md-pane__preview { flex: 1; overflow: auto; padding: 24px 40px; }
-.md-preview-body { min-width: min-content; }
+.md-pane__preview { flex: 1; overflow: auto; padding: 24px clamp(16px, 5%, 40px); }
+.md-preview-body { max-width: var(--editor-column-width, 780px); margin-inline: auto; }
 .bubble-menu__row { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
 .bubble-menu__divider { height: 1px; background-color: var(--border-subtle); margin: 4px 0; }
 .bubble-menu__lang { gap: 8px; padding: 0 4px; }

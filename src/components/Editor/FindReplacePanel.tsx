@@ -14,6 +14,9 @@ export const FindReplacePanel: React.FC = () => {
   const sendSearchCommand = useAppStore((s) => s.sendSearchCommand);
   const closeSearch = useAppStore((s) => s.closeSearch);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isMac = window.api.app.platform === 'darwin';
+  const previousHint = isMac ? '⇧↵' : 'Shift+↵';
+  const replaceAllHint = isMac ? '⌘↵' : 'Ctrl+↵';
 
   useEffect(() => {
     if (findVisible) {
@@ -46,7 +49,7 @@ export const FindReplacePanel: React.FC = () => {
         <button title="区分大小写" onClick={() => setSearch({ caseSensitive: !search.caseSensitive })} className={`icon-btn find-panel__btn ${search.caseSensitive ? 'find-panel__btn--on' : ''}`}>
           <CaseSensitive size={14} />
         </button>
-        <button title="上一个 (⇧↵)" onClick={() => sendSearchCommand('prev')} disabled={!hasQuery} className="icon-btn find-panel__btn"><ChevronUp size={14} /></button>
+        <button title={`上一个 (${previousHint})`} onClick={() => sendSearchCommand('prev')} disabled={!hasQuery} className="icon-btn find-panel__btn"><ChevronUp size={14} /></button>
         <button title="下一个 (↵)" onClick={() => sendSearchCommand('next')} disabled={!hasQuery} className="icon-btn find-panel__btn"><ChevronDown size={14} /></button>
         <button title="关闭 (Esc)" onClick={closeSearch} className="icon-btn find-panel__btn"><X size={14} /></button>
       </div>
@@ -56,7 +59,7 @@ export const FindReplacePanel: React.FC = () => {
           <Replace size={14} color="var(--text-muted)" />
           <input value={search.replacement} onChange={(e) => setSearch({ replacement: e.target.value })} onKeyDown={onReplaceKeyDown} placeholder="替换为…" className="find-panel__input" />
           <button onClick={() => sendSearchCommand('replace')} disabled={!hasQuery || search.total === 0} title="替换当前 (↵)" className="btn btn-surface find-panel__action">替换</button>
-          <button onClick={() => sendSearchCommand('replaceAll')} disabled={!hasQuery || search.total === 0} title="全部替换 (⌘↵)" className="btn btn-primary find-panel__action">全部</button>
+          <button onClick={() => sendSearchCommand('replaceAll')} disabled={!hasQuery || search.total === 0} title={`全部替换 (${replaceAllHint})`} className="btn btn-primary find-panel__action">全部</button>
         </div>
       )}
     </div>

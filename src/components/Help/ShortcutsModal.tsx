@@ -52,7 +52,7 @@ const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
           { label: '显示 / 隐藏侧边栏', keys: [modKey, '\\'] },
           { label: '专注模式（Esc 退出）', keys: [modKey, '⇧', '.'] },
           { label: '文档内查找', keys: [modKey, 'F'] },
-          { label: '查找并替换', keys: [altKey, modKey, 'F'] },
+          { label: '查找并替换', keys: isMac ? [altKey, modKey, 'F'] : [modKey, 'H'] },
           { label: '设置', keys: [modKey, ','] },
           { label: '快捷键说明', keys: [modKey, '/'] },
         ],

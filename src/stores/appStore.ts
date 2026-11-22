@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { isNewerVersion } from '../utils/version';
-import type { UpdateInfo } from '../types/window';
+import type { DraftInfo, UpdateInfo } from '../types/window';
 import { deriveNoteTitle } from '../utils/noteTitle';
 import { rebaseRelativeLinks } from '../utils/rebaseLinks';
 import { FileSortMode, DEFAULT_FILE_SORT, isFileSortMode } from '../utils/fileSort';
@@ -31,6 +31,7 @@ export interface Tab {
   diskMissing?: boolean;
   /** 上次从磁盘读到 / 写进磁盘的内容的指纹：用来分清「磁盘真的被别人改了」和「只是我这边打了字、磁盘没动」 */
   diskSig?: string;
+  draftModifiedAt?: number;
 }
 
 /** 内容指纹：长度 + FNV-1a。只用来判断「和上次是不是同一份」，不需要防碰撞的强度 */
@@ -122,7 +123,7 @@ export interface NavigationRequest {
 
 /** 状态栏提示上的按钮（「打开」「在访达中显示」……）；点过就收起提示 */
 export interface NoticeAction { label: string; run: () => void }
-export type SidebarTab = 'files' | 'outline';
+export type SidebarTab = 'files' | 'outline' | 'recent';
 
 /** 正文排版：字体、字号、行距、页宽（富文本与预览共用） */
 export interface EditorPrefs {
@@ -133,7 +134,7 @@ export interface EditorPrefs {
   pageWidth: 'narrow' | 'medium' | 'wide' | 'full';
 }
 
-export const DEFAULT_EDITOR_PREFS: EditorPrefs = { font: 'system', fontSize: 16, lineHeight: 1.6, pageWidth: 'medium' };
+export const DEFAULT_EDITOR_PREFS: EditorPrefs = { font: 'system', fontSize: 16, lineHeight: 1.75, pageWidth: 'medium' };
 
 export const EDITOR_FONTS: Record<EditorPrefs['font'], { label: string; stack: string }> = {
   system: { label: '系统默认', stack: 'var(--font-body)' },
@@ -151,9 +152,9 @@ export const COMMON_EDITOR_FONTS = [
 ];
 
 export const PAGE_WIDTHS: Record<EditorPrefs['pageWidth'], { label: string; css: string }> = {
-  narrow: { label: '窄', css: '700px' },
-  medium: { label: '适中', css: '820px' },
-  wide: { label: '宽', css: '1040px' },
+  narrow: { label: '窄', css: '640px' },
+  medium: { label: '适中', css: '780px' },
+  wide: { label: '宽', css: '1080px' },
   full: { label: '铺满', css: '100%' },
 };
 
@@ -178,7 +179,7 @@ export function applyEditorPrefs(prefs: EditorPrefs) {
   root.style.setProperty('--editor-font', fontStack);
   root.style.setProperty('--editor-font-size', `${prefs.fontSize}px`);
   root.style.setProperty('--editor-line-height', String(prefs.lineHeight));
-  root.style.setProperty('--editor-page-width', PAGE_WIDTHS[prefs.pageWidth].css);
+  root.style.setProperty('--editor-column-width', PAGE_WIDTHS[prefs.pageWidth].css);
 }
 
 export interface SearchState {
@@ -206,6 +207,7 @@ export interface AppState {
   toolbarVisible: boolean;
   statusBarVisible: boolean;
   recentFiles: string[];
+  recentDrafts: DraftInfo[];
   outline: HeadingNode[];
   findVisible: boolean;
   replaceVisible: boolean;
@@ -265,7 +267,8 @@ export interface AppState {
   toggleMode: () => void;
   setActiveTab: (id: string | null) => void;
   openTab: (tab: Tab) => void;
-  closeTab: (id: string) => void;
+  closeTab: (id: string, keepDraft?: boolean) => void;
+  openRecentDraft: (id: string) => Promise<void>;
   /** 关标签页的统一入口：脏文档先弹确认，干净的直接关 */
   requestCloseTab: (id: string) => void;
   closeTabs: (ids: string[]) => void;
@@ -347,7 +350,7 @@ export interface AppState {
   setAppearanceMode: (mode: 'light' | 'dark' | 'system' | 'eye-protection') => void;
   setStartupBehavior: (behavior: 'restore' | 'blank') => void;
   setAutoSave: (autoSave: boolean) => void;
-  loadSession: () => Promise<boolean>;
+  loadSession: (restoreWorkspace?: boolean) => Promise<boolean>;
   loadSettings: () => Promise<void>;
   saveSettings: () => Promise<void>;
   applyAppearance: (mode: 'light' | 'dark' | 'system' | 'eye-protection') => void;
@@ -427,6 +430,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toolbarVisible: true,
   statusBarVisible: true,
   recentFiles: [],
+  recentDrafts: [],
   outline: [],
   findVisible: false,
   replaceVisible: false,
@@ -543,7 +547,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  closeTab: (id: string) => set((state) => {
+  openRecentDraft: async (id) => {
+    if (get().tabs.some((tab) => tab.id === id)) {
+      await get().setActiveTab(id);
+      return;
+    }
+    if (!window.api.drafts) return;
+    try {
+      const content = await window.api.drafts.read(id);
+      get().openTab({ id, title: '未命名', content, isDirty: true, mode: 'word',
+        draftModifiedAt: get().recentDrafts.find((draft) => draft.id === id)?.modifiedAt });
+    } catch {
+      get().notify('无法打开草稿，文件可能已移动或删除');
+    }
+  },
+
+  closeTab: (id: string, keepDraft = false) => set((state) => {
+    if (id.startsWith('new-') && !keepDraft) void forgetDraft(id);
     // 记下刚关掉的真实文件，⌘⇧T 能原路开回来；未命名文档没有路径，开不回来
     const closedTabs = id.startsWith('new-')
       ? state.closedTabs
@@ -571,7 +591,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 内容没变就不动，避免把未编辑的文件标脏
     if (!target || target.content === content) return;
     set((state) => ({
-      tabs: state.tabs.map(t => t.id === id ? { ...t, content, isDirty: true } : t)
+      tabs: state.tabs.map(t => t.id === id ? { ...t, content, isDirty: true, ...(id.startsWith('new-') ? { draftModifiedAt: Date.now() } : {}) } : t)
     }));
   },
 
@@ -611,7 +631,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const content = edit(target.content);
     if (content === target.content) return true;
     set((state) => ({
-      tabs: state.tabs.map(t => t.id === id ? { ...t, content, isDirty: true } : t),
+      tabs: state.tabs.map(t => t.id === id ? { ...t, content, isDirty: true, ...(id.startsWith('new-') ? { draftModifiedAt: Date.now() } : {}) } : t),
       externalWrite: { id, rev: (state.externalWrite?.rev ?? 0) + 1 },
     }));
     return true;
@@ -913,7 +933,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     if (isTempFile || saveAs) {
-      // 未命名文档从不悄悄建成文件：内容随会话保存着，存到哪、叫什么，由用户在保存框里定
+      // 草稿副本不替代正式保存，文件名与位置仍由用户决定。
       if (isTempFile && isAutoSave) return false;
       // 保存框里先替用户想一个名字（正文第一行），位置默认在打开的文件夹里
       const dir = get().getNewNoteDir();
@@ -931,6 +951,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (isTempFile || saveAs) {
         await get().updateTabId(activeTab.id, filePath, filePath.split(/[\\\\/]/).pop() || 'Untitled');
         get().setActiveTab(filePath);
+        if (isTempFile) void forgetDraft(activeTab.id);
         if (get().workspacePath && filePath.startsWith(get().workspacePath!)) {
           get().refreshWorkspace();
         }
@@ -993,13 +1014,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   },
 
-  loadSession: async () => {
+  loadSession: async (restoreWorkspace = true) => {
     try {
+      const drafts = await window.api.drafts?.list().catch(() => []);
+      if (drafts) set({ recentDrafts: drafts });
       const sessionStr = localStorage.getItem('iml_session');
       let restoredWorkspace = false;
       
       if (sessionStr) {
         const session = JSON.parse(sessionStr);
+        if (Array.isArray(session.recentFiles)) {
+          set({ recentFiles: session.recentFiles.filter((path: unknown) => typeof path === 'string').slice(0, 10) });
+        }
+        if (!restoreWorkspace) return false;
 
         // 上次打开的文件夹和它的展开状态；文件夹已经不在了就算了，不报错
         if (typeof session.folderPath === 'string' && session.folderPath && await window.api.fs.exists(session.folderPath)) {
@@ -1008,14 +1035,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           restoredWorkspace = true;
         }
         if (typeof session.sidebarVisible === 'boolean') set({ sidebarVisible: session.sidebarVisible });
-        if (session.sidebarTab === 'files' || session.sidebarTab === 'outline') set({ sidebarTab: session.sidebarTab });
+        if (session.sidebarTab === 'files' || session.sidebarTab === 'outline' || session.sidebarTab === 'recent') set({ sidebarTab: session.sidebarTab });
         if (typeof session.toolbarVisible === 'boolean') set({ toolbarVisible: session.toolbarVisible });
         if (typeof session.statusBarVisible === 'boolean') set({ statusBarVisible: session.statusBarVisible });
 
-        // 恢复 Recent Files
-        if (session.recentFiles) {
-          set({ recentFiles: session.recentFiles });
-        }
         if (typeof session.sidebarWidth === 'number') {
           get().setSidebarWidth(session.sidebarWidth);
         }
@@ -1032,11 +1055,22 @@ export const useAppStore = create<AppState>((set, get) => ({
             isDirty: !!t.isDirty,
             content: typeof t.content === 'string' ? t.content : '',
             diskSig: typeof t.diskSig === 'string' ? t.diskSig : undefined,
+            draftModifiedAt: typeof t.draftModifiedAt === 'number' ? t.draftModifiedAt : undefined,
           }));
         if (restoredTabs.length > 0) {
           // 并行读盘、一次性写回：避免逐个 set 让整棵组件树反复渲染
           const loaded = await Promise.all(restoredTabs.map(async (tab): Promise<Tab | null> => {
-            if (tab.id.startsWith('new-')) return tab; // 未命名文档：内容已随会话保存
+            if (tab.id.startsWith('new-')) {
+              const draft = drafts?.find((item) => item.id === tab.id);
+              if (draft && (!tab.content || draft.modifiedAt >= (tab.draftModifiedAt ?? Infinity))) {
+                try {
+                  const content = await window.api.drafts!.read(tab.id);
+                  syncedDrafts.set(tab.id, content);
+                  return { ...tab, content, isDirty: true, draftModifiedAt: draft.modifiedAt };
+                } catch { /* 仍可从会话恢复 */ }
+              }
+              return tab;
+            }
             try {
               const result = await window.api.fs.readFile(tab.id);
               if (!result.success || result.content === undefined) return null;
@@ -1287,6 +1321,69 @@ const isMainWindow = !new URLSearchParams(window.location.search).get('window');
 let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionPersistDisabled = false;
 
+const draftWrites = new Map<string, Promise<void>>();
+const syncedDrafts = new Map<string, string>();
+
+function queueDraftWrite(id: string, write: () => Promise<void>): Promise<void> {
+  const next = (draftWrites.get(id) ?? Promise.resolve()).catch(() => {}).then(write);
+  draftWrites.set(id, next);
+  const finish = () => { if (draftWrites.get(id) === next) draftWrites.delete(id); };
+  void next.then(finish, finish);
+  return next;
+}
+
+function saveDraft(tab: Tab): Promise<void> {
+  const api = window.api.drafts;
+  if (!api || !tab.id.startsWith('new-')) return Promise.resolve();
+  if (!tab.content.trim()) return tab.draftModifiedAt ? forgetDraft(tab.id) : Promise.resolve();
+  return queueDraftWrite(tab.id, async () => {
+    if (syncedDrafts.get(tab.id) === tab.content) return;
+    const modifiedAt = await api.save(tab.id, tab.content, tab.draftModifiedAt ?? Date.now());
+    syncedDrafts.set(tab.id, tab.content);
+    const draft = { id: tab.id, modifiedAt, preview: tab.content.slice(0, 1024) };
+    useAppStore.setState((state) => ({ recentDrafts: [draft, ...state.recentDrafts.filter((item) => item.id !== tab.id)] }));
+  });
+}
+
+async function forgetDraft(id: string) {
+  const api = window.api.drafts;
+  if (!api || (!draftWrites.has(id) && !useAppStore.getState().recentDrafts.some((item) => item.id === id))) return;
+  try {
+    await queueDraftWrite(id, async () => {
+      await api.remove(id);
+      syncedDrafts.delete(id);
+      useAppStore.setState((state) => ({ recentDrafts: state.recentDrafts.filter((item) => item.id !== id) }));
+    });
+  } catch {
+    useAppStore.getState().notify('临时草稿未能清除');
+  }
+}
+
+export async function keepDraftAndClose(id: string) {
+  const state = useAppStore.getState();
+  state.editorFlush?.();
+  const tab = useAppStore.getState().tabs.find((item) => item.id === id);
+  if (!tab || !window.api.drafts) return;
+  try {
+    await saveDraft(tab);
+    if (useAppStore.getState().tabToClose !== id) return;
+    state.closeTab(id, true);
+    state.advanceCloseQueue();
+  } catch {
+    state.notify('草稿保存失败，标签页仍然打开');
+  }
+}
+
+async function flushDrafts() {
+  flushSessionNow();
+  try {
+    await Promise.all(useAppStore.getState().tabs.map(saveDraft));
+  } catch (error) {
+    useAppStore.getState().notify('临时草稿写入失败，请正式保存后再关闭窗口');
+    throw error;
+  }
+}
+
 function persistSession(state: AppState) {
   if (!isMainWindow || sessionPersistDisabled) return;
   const sessionToSave = {
@@ -1301,7 +1398,7 @@ function persistSession(state: AppState) {
     statusBarVisible: state.statusBarVisible,
     tabs: state.tabs.map(t => {
       const keepContent = (t.isDirty || t.id.startsWith('new-')) && t.content.length <= MAX_PERSISTED_CONTENT;
-      return { id: t.id, title: t.title, isDirty: t.isDirty, mode: t.mode, ...(keepContent ? { content: t.content, diskSig: t.diskSig } : {}) };
+      return { id: t.id, title: t.title, isDirty: t.isDirty, mode: t.mode, draftModifiedAt: t.draftModifiedAt, ...(keepContent ? { content: t.content, diskSig: t.diskSig } : {}) };
     }),
   };
   try {
@@ -1347,13 +1444,18 @@ useAppStore.subscribe((state, prevState) => {
   // 脏标签页的内容也会序列化，1s 防抖把连续打字合并成一次写入
   sessionSaveTimer = setTimeout(() => {
     sessionSaveTimer = null;
-    persistSession(useAppStore.getState());
+    const current = useAppStore.getState();
+    persistSession(current);
+    void Promise.all(current.tabs.map(saveDraft)).catch((error) => console.warn('临时草稿写入失败:', error));
   }, 1000);
 });
 
 if (isMainWindow) {
   window.addEventListener('beforeunload', flushSessionNow);
-  window.addEventListener('blur', flushSessionNow);
+  window.addEventListener('blur', () => {
+    void flushDrafts().catch((error) => console.warn('临时草稿写入失败:', error));
+  });
+  void window.api?.app.onBeforeClose?.(flushDrafts).catch((error) => console.warn('无法监听关闭窗口:', error));
 }
 
 // 开发模式下把 store 挂到 window 上：端到端测试要核对「标签页里的内容和磁盘是不是一致」这类界面上看不出来的状态。

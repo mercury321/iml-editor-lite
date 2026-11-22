@@ -14,6 +14,7 @@ import { extractHtmlTitle, detectCharset } from '../shared/pageTitle';
 import { exportCss, exportDocument } from '../shared/exportDoc';
 import { describeRelease, pickLatestRelease } from '../shared/update';
 import { numberedPath } from '../shared/imageTiles';
+import type { DraftInfo } from '../types/window';
 
 declare const __APP_VERSION__: string;
 
@@ -311,6 +312,12 @@ export function createTauriApi(): WindowApi {
       writeHtml: (html, text) => invoke<void>('clipboard_write_html', { html, text }),
     },
 
+    drafts: {
+      list: () => invoke<DraftInfo[]>('draft_list'),
+      read: (id) => invoke<string>('draft_read', { id }),
+      save: (id, content, modifiedAt) => invoke<number>('draft_save', { id, content, modifiedAt }),
+      remove: (id) => invoke<void>('draft_remove', { id }),
+    },
     events: {
       on,
       send: (channel, ...args) => emitLocal(channel, ...args),
@@ -337,6 +344,25 @@ export function createTauriApi(): WindowApi {
       setAlwaysOnTop: (value) => getCurrentWindow().setAlwaysOnTop(value),
       getInstalledFonts: () => invoke<string[]>('list_installed_fonts'),
       getSettings: () => invoke<any>('settings_get'),
+      onBeforeClose: (flush) => {
+        const win = getCurrentWindow();
+        let flushing = false;
+        return win.onCloseRequested(async (event) => {
+          if (flushing) {
+            event.preventDefault();
+            return;
+          }
+          flushing = true;
+          try {
+            await flush();
+          } catch (error) {
+            event.preventDefault();
+            console.warn('关闭窗口前保存草稿失败:', error);
+          } finally {
+            flushing = false;
+          }
+        });
+      },
       saveSettings: async (settings) => {
         try {
           await invoke('settings_save', { settings });

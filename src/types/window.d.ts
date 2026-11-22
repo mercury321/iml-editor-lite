@@ -1,11 +1,18 @@
 export {};
 
 import type { UpdateInfo } from '../shared/update';
+export type DraftInfo = { id: string; modifiedAt: number; preview: string };
 export type { UpdateInfo } from '../shared/update';
 
 declare global {
   interface Window {
     api: {
+      drafts?: {
+        list: () => Promise<DraftInfo[]>;
+        read: (id: string) => Promise<string>;
+        save: (id: string, content: string, modifiedAt: number) => Promise<number>;
+        remove: (id: string) => Promise<void>;
+      };
       dialog: {
         open: (options?: any) => Promise<string[] | null>;
         save: (options?: any) => Promise<string | null>;
@@ -65,6 +72,7 @@ declare global {
         setAlwaysOnTop: (value: boolean) => Promise<void>;
         getInstalledFonts?: () => Promise<string[]>;
         getSettings: () => Promise<any>;
+        onBeforeClose?: (flush: () => Promise<void>) => Promise<() => void>;
         saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
         openSettings: () => void;
         consumePendingOpenFiles: () => Promise<string[]>;

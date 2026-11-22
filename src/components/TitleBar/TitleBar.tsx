@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore, needsSavePrompt } from '../../stores/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  FileCode, X, FileDown, Plus, Save, FileUp, FolderOpen, Sidebar as SidebarIcon, Layout, RotateCw, Minus, Square, Settings, Focus, Clock, Pin,
+  FileCode, X, FileDown, Plus, Save, FileUp, FolderOpen, Sidebar as SidebarIcon, Layout, RotateCw, Minus, Square, Settings, Focus, Clock, Pin, Search, Replace,
 } from 'lucide-react';
 import { exportActiveTabToPdf, exportActiveTabToHtml, exportActiveTabToDocx, exportActiveTabToImage } from '../../utils/exportPdf';
 import { isNewerVersion } from '../../utils/version';
@@ -69,9 +69,9 @@ const TabContextMenu: React.FC<{ tabId: string; x: number; y: number; onDone: ()
 
 const TitleBarImpl: React.FC = () => {
   const {
-    tabs, activeTabId, setActiveTab, requestCloseTab, closeOtherTabs, reopenClosedTab, closedTabs, toggleSidebar, toggleToolbar, toggleStatusBar, createNewFile, sidebarVisible, toolbarVisible, statusBarVisible, openFile, openDirectory, openFileByPath, recentFiles, workspacePath, saveActiveFile, refreshWorkspace, updateStatus, checkUpdates, openDialog, focusMode, toggleFocusMode,
+    tabs, activeTabId, setActiveTab, requestCloseTab, closeOtherTabs, reopenClosedTab, closedTabs, toggleSidebar, toggleToolbar, toggleStatusBar, createNewFile, toggleFind, toggleReplace, sidebarVisible, toolbarVisible, statusBarVisible, openFile, openDirectory, openFileByPath, recentFiles, workspacePath, saveActiveFile, refreshWorkspace, updateStatus, checkUpdates, openDialog, focusMode, toggleFocusMode,
   } = useAppStore(useShallow((s) => ({
-    tabs: s.tabs, activeTabId: s.activeTabId, setActiveTab: s.setActiveTab, requestCloseTab: s.requestCloseTab, closeOtherTabs: s.closeOtherTabs, reopenClosedTab: s.reopenClosedTab, closedTabs: s.closedTabs, toggleSidebar: s.toggleSidebar, toggleToolbar: s.toggleToolbar, toggleStatusBar: s.toggleStatusBar, createNewFile: s.createNewFile, sidebarVisible: s.sidebarVisible, toolbarVisible: s.toolbarVisible, statusBarVisible: s.statusBarVisible, openFile: s.openFile, openDirectory: s.openDirectory, openFileByPath: s.openFileByPath, recentFiles: s.recentFiles, workspacePath: s.workspacePath, saveActiveFile: s.saveActiveFile, refreshWorkspace: s.refreshWorkspace, updateStatus: s.updateStatus, checkUpdates: s.checkUpdates, openDialog: s.openDialog, focusMode: s.focusMode, toggleFocusMode: s.toggleFocusMode,
+    tabs: s.tabs, activeTabId: s.activeTabId, setActiveTab: s.setActiveTab, requestCloseTab: s.requestCloseTab, closeOtherTabs: s.closeOtherTabs, reopenClosedTab: s.reopenClosedTab, closedTabs: s.closedTabs, toggleSidebar: s.toggleSidebar, toggleToolbar: s.toggleToolbar, toggleStatusBar: s.toggleStatusBar, createNewFile: s.createNewFile, toggleFind: s.toggleFind, toggleReplace: s.toggleReplace, sidebarVisible: s.sidebarVisible, toolbarVisible: s.toolbarVisible, statusBarVisible: s.statusBarVisible, openFile: s.openFile, openDirectory: s.openDirectory, openFileByPath: s.openFileByPath, recentFiles: s.recentFiles, workspacePath: s.workspacePath, saveActiveFile: s.saveActiveFile, refreshWorkspace: s.refreshWorkspace, updateStatus: s.updateStatus, checkUpdates: s.checkUpdates, openDialog: s.openDialog, focusMode: s.focusMode, toggleFocusMode: s.toggleFocusMode,
   })));
 
   const hasUpdate = isNewerVersion(updateStatus.latestVersion, window.api.appVersion);
@@ -81,6 +81,9 @@ const TitleBarImpl: React.FC = () => {
   const activeTab = tabs.find(t => t.id === activeTabId);
   const tabsRef = useRef<HTMLDivElement>(null);
   const isMac = window.api.app.platform === 'darwin';
+  const modHint = isMac ? '⌘' : 'Ctrl+';
+  const shiftModHint = isMac ? '⇧⌘' : 'Ctrl+Shift+';
+  const altModHint = isMac ? '⌥⌘' : 'Alt+Ctrl+';
 
   useEffect(() => {
     void window.api.app.isAlwaysOnTop().then(setAlwaysOnTop);
@@ -131,9 +134,9 @@ const TitleBarImpl: React.FC = () => {
 
       <div className={`titlebar-menus ${isMac ? '' : 'titlebar-menus--win'}`}>
         <Menu id="file" label="文件" width={220}>
-          <MenuItem icon={<Plus size={14} />} label="新建文档" hint="⌘N" onClick={run(createNewFile)} />
-          <MenuItem icon={<FileUp size={14} />} label="打开文件…" hint="⌘O" onClick={run(openFile)} />
-          <MenuItem icon={<FolderOpen size={14} />} label="打开文件夹…" hint="⇧⌘O" onClick={run(openDirectory)} />
+          <MenuItem icon={<Plus size={14} />} label="新建文档" hint={`${modHint}N`} onClick={run(createNewFile)} />
+          <MenuItem icon={<FileUp size={14} />} label="打开文件…" hint={`${modHint}O`} onClick={run(openFile)} />
+          <MenuItem icon={<FolderOpen size={14} />} label="打开文件夹…" hint={`${shiftModHint}O`} onClick={run(openDirectory)} />
           {recentFiles.length > 0 && (
             <>
               <MenuDivider />
@@ -144,35 +147,38 @@ const TitleBarImpl: React.FC = () => {
             </>
           )}
           <MenuDivider />
-          <MenuItem icon={<Save size={14} />} label="保存" hint="⌘S" disabled={!activeTab} onClick={run(() => saveActiveFile())} />
-          <MenuItem icon={<Save size={14} />} label="另存为..." hint="⇧⌘S" disabled={!activeTab} onClick={run(() => saveActiveFile(true))} />
+          <MenuItem icon={<Save size={14} />} label="保存" hint={`${modHint}S`} disabled={!activeTab} onClick={run(() => saveActiveFile())} />
+          <MenuItem icon={<Save size={14} />} label="另存为..." hint={`${shiftModHint}S`} disabled={!activeTab} onClick={run(() => saveActiveFile(true))} />
           <MenuDivider />
-          <MenuItem icon={<FileDown size={14} />} label="导出为 PDF" hint="⌘P" disabled={!activeTab} onClick={run(exportActiveTabToPdf)} />
-          <MenuItem icon={<FileDown size={14} />} label="导出为 HTML" hint="⇧⌘E" disabled={!activeTab} onClick={run(exportActiveTabToHtml)} />
+          <MenuItem icon={<FileDown size={14} />} label="导出为 PDF" hint={`${modHint}P`} disabled={!activeTab} onClick={run(exportActiveTabToPdf)} />
+          <MenuItem icon={<FileDown size={14} />} label="导出为 HTML" hint={`${shiftModHint}E`} disabled={!activeTab} onClick={run(exportActiveTabToHtml)} />
           <MenuItem icon={<FileDown size={14} />} label="导出为 Word" disabled={!activeTab} onClick={run(() => void exportActiveTabToDocx())} />
           <MenuItem icon={<FileDown size={14} />} label="导出为长图" disabled={!activeTab} onClick={run(() => void exportActiveTabToImage())} />
           <MenuDivider />
           {/* Windows 没有原生菜单，这几项得在这里也能找到；关闭右侧 / 已保存 / 全部 留在标签页右键里 */}
-          <MenuItem icon={<X size={14} />} label="关闭标签页" hint="⌘W" disabled={!activeTab} onClick={run(() => activeTabId && requestCloseTab(activeTabId))} />
-          <MenuItem icon={<X size={14} />} label="关闭其他标签页" hint="⌥⌘W" disabled={tabs.length < 2} onClick={run(() => activeTabId && closeOtherTabs(activeTabId))} />
-          <MenuItem icon={<RotateCw size={14} />} label="重开刚关的标签页" hint="⇧⌘T" disabled={closedTabs.length === 0} onClick={run(() => void reopenClosedTab())} />
+          <MenuItem icon={<X size={14} />} label="关闭标签页" hint={`${modHint}W`} disabled={!activeTab} onClick={run(() => activeTabId && requestCloseTab(activeTabId))} />
+          <MenuItem icon={<X size={14} />} label="关闭其他标签页" hint={`${altModHint}W`} disabled={tabs.length < 2} onClick={run(() => activeTabId && closeOtherTabs(activeTabId))} />
+          <MenuItem icon={<RotateCw size={14} />} label="重开刚关的标签页" hint={`${shiftModHint}T`} disabled={closedTabs.length === 0} onClick={run(() => void reopenClosedTab())} />
         </Menu>
 
         <Menu id="edit" label="编辑">
-          <MenuItem label="撤销" hint="⌘Z" onClick={run(() => document.execCommand('undo'))} />
-          <MenuItem label="重做" hint="⇧⌘Z" onClick={run(() => document.execCommand('redo'))} />
+          <MenuItem label="撤销" hint={`${modHint}Z`} onClick={run(() => document.execCommand('undo'))} />
+          <MenuItem label="重做" hint={`${shiftModHint}Z`} onClick={run(() => document.execCommand('redo'))} />
           <MenuDivider />
-          <MenuItem label="剪切" hint="⌘X" onClick={run(() => document.execCommand('cut'))} />
-          <MenuItem label="复制" hint="⌘C" onClick={run(() => document.execCommand('copy'))} />
-          <MenuItem label="粘贴" hint="⌘V" onClick={run(() => document.execCommand('paste'))} />
-          <MenuItem label="全选" hint="⌘A" onClick={run(() => document.execCommand('selectAll'))} />
+          <MenuItem label="剪切" hint={`${modHint}X`} onClick={run(() => document.execCommand('cut'))} />
+          <MenuItem label="复制" hint={`${modHint}C`} onClick={run(() => document.execCommand('copy'))} />
+          <MenuItem label="粘贴" hint={`${modHint}V`} onClick={run(() => document.execCommand('paste'))} />
+          <MenuItem label="全选" hint={`${modHint}A`} onClick={run(() => document.execCommand('selectAll'))} />
+          <MenuDivider />
+          <MenuItem icon={<Search size={14} />} label="查找" hint={isMac ? '⌘F' : 'Ctrl+F'} onClick={run(toggleFind)} />
+          <MenuItem icon={<Replace size={14} />} label="查找并替换" hint={isMac ? '⌥⌘F' : 'Ctrl+H'} onClick={run(toggleReplace)} />
         </Menu>
 
         <Menu id="view" label="视图" width={200}>
           <MenuItem icon={<Pin size={14} />} label={alwaysOnTop ? '取消窗口置顶' : '窗口置顶'} dim={!alwaysOnTop} onClick={run(toggleAlwaysOnTop)} />
           <MenuDivider />
-          <MenuItem icon={<SidebarIcon size={14} />} label={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'} hint="⌘\" onClick={run(toggleSidebar)} />
-          <MenuItem icon={<Focus size={14} />} label={focusMode ? '退出专注模式' : '专注模式'} hint="⇧⌘." onClick={run(toggleFocusMode)} />
+          <MenuItem icon={<SidebarIcon size={14} />} label={sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'} hint={`${modHint}\\`} onClick={run(toggleSidebar)} />
+          <MenuItem icon={<Focus size={14} />} label={focusMode ? '退出专注模式' : '专注模式'} hint={`${shiftModHint}.`} onClick={run(toggleFocusMode)} />
           <MenuDivider />
           <MenuItem icon={<Layout size={14} />} label={toolbarVisible ? '隐藏工具栏' : '显示工具栏'} dim={!toolbarVisible} onClick={run(toggleToolbar)} />
           <MenuItem icon={<Layout size={14} />} label={statusBarVisible ? '隐藏状态栏' : '显示状态栏'} dim={!statusBarVisible} onClick={run(toggleStatusBar)} />
@@ -185,9 +191,9 @@ const TitleBarImpl: React.FC = () => {
         </Menu>
 
         <Menu id="help" label="帮助" width={180} badge={hasUpdate}>
-          <MenuItem icon={<Layout size={14} />} label="快捷键" hint="⌘/" onClick={run(() => openDialog('shortcuts'))} />
+          <MenuItem icon={<Layout size={14} />} label="快捷键" hint={`${modHint}/`} onClick={run(() => openDialog('shortcuts'))} />
           <MenuItem icon={<RotateCw size={14} />} label={<>检查更新{hasUpdate && <div className="notification-dot" />}</>} onClick={run(checkUpdates)} />
-          <MenuItem icon={<Settings size={14} />} label="设置" hint="⌘," onClick={run(() => openDialog('settings'))} />
+          <MenuItem icon={<Settings size={14} />} label="设置" hint={`${modHint},`} onClick={run(() => openDialog('settings'))} />
           <MenuDivider />
           <MenuItem icon={<Layout size={14} />} label="关于" onClick={run(() => openDialog('about'))} />
         </Menu>
@@ -214,7 +220,7 @@ const TitleBarImpl: React.FC = () => {
               )}
               <span className="tab-title" title={tab.externallyModified ? '磁盘上已被外部修改' : tab.id}>{tab.title}</span>
               {/* 未保存时平时显示圆点，鼠标移上标签页才换回叉号（VS Code 的做法）：一眼能看出哪个没存，又不占额外位置 */}
-              <div className="close-tab-icon" title={unsaved ? '有未保存的修改 · 点击关闭' : '关闭标签页 ⌘W'} onClick={(e) => { e.stopPropagation(); requestCloseTab(tab.id); }}>
+              <div className="close-tab-icon" title={unsaved ? '有未保存的修改 · 点击关闭' : `关闭标签页 ${modHint}W`} onClick={(e) => { e.stopPropagation(); requestCloseTab(tab.id); }}>
                 <span className="close-tab-icon__dot" />
                 <X size={12} className="close-tab-icon__x" />
               </div>

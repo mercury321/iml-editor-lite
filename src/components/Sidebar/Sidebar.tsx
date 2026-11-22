@@ -3,9 +3,10 @@ import React from 'react';
 import { useAppStore, FileNode, HeadingNode, readLibraryDir } from '../../stores/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { sortFileNodes, FILE_SORT_LABELS, FileSortMode } from '../../utils/fileSort';
+import { deriveNoteTitle } from '../../utils/noteTitle';
 import {
   ChevronDown, ChevronRight, FolderOpen, FileText, FileCode, FolderClosed,
-  List, RotateCw, Folder, FilePlus, FolderPlus, ArrowUpDown, Check, X,
+  List, RotateCw, Folder, FilePlus, FolderPlus, ArrowUpDown, Check, X, Clock,
 } from 'lucide-react';
 
 const isMac = window.api.app.platform === 'darwin';
@@ -17,11 +18,12 @@ const ActivityBarImpl: React.FC = () => {
   const tabs = [
     { id: 'files' as const, icon: <Folder size={16} />, label: '文件', title: '打开的文件夹' },
     { id: 'outline' as const, icon: <List size={16} />, label: '大纲', title: '当前文档的大纲' },
+    { id: 'recent' as const, icon: <Clock size={16} />, label: '最近', title: '最近打开与未保存草稿' },
   ];
   return (
     <div className="activity-bar">
       {tabs.map((t) => (
-        <button key={t.id} className={`activity-bar-btn ${sidebarTab === t.id && sidebarVisible ? 'active' : ''}`} onClick={() => setSidebarTab(t.id)} title={t.title}>
+        <button key={t.id} className={`activity-bar-btn ${sidebarTab === t.id && sidebarVisible ? 'active' : ''}`} onClick={() => setSidebarTab(t.id)} title={t.title} aria-label={t.title} aria-pressed={sidebarTab === t.id && sidebarVisible}>
           {t.icon}
           <span>{t.label}</span>
         </button>
@@ -29,6 +31,49 @@ const ActivityBarImpl: React.FC = () => {
     </div>
   );
 };
+
+function RecentFiles() {
+  const { recentFiles, recentDrafts, tabs, activeTabId, openRecentDraft, openFileByPath } = useAppStore(useShallow((state) => ({
+    recentFiles: state.recentFiles,
+    recentDrafts: state.recentDrafts,
+    tabs: state.tabs,
+    activeTabId: state.activeTabId,
+    openRecentDraft: state.openRecentDraft,
+    openFileByPath: state.openFileByPath,
+  })));
+  const drafts = new Map(recentDrafts.map((draft) => [draft.id, draft]));
+  for (const tab of tabs) {
+    if (!tab.id.startsWith('new-') || !tab.content.trim()) continue;
+    drafts.set(tab.id, { id: tab.id, preview: tab.content, modifiedAt: tab.draftModifiedAt ?? drafts.get(tab.id)?.modifiedAt ?? 0 });
+  }
+  const orderedDrafts = [...drafts.values()].sort((a, b) => b.modifiedAt - a.modifiedAt);
+  if (!recentFiles.length && !orderedDrafts.length) {
+    return <div className="empty-state">还没有最近打开的文档</div>;
+  }
+  return (
+    <div className="recent-panel">
+      {orderedDrafts.length > 0 && <section aria-label="未保存草稿">
+        <h2 className="recent-panel__heading">未保存草稿</h2>
+        {orderedDrafts.map((draft) => {
+          const title = deriveNoteTitle(draft.preview) || '未命名';
+          return <button key={draft.id} type="button" className="recent-panel__item" aria-current={activeTabId === draft.id ? 'true' : undefined}
+            title={draft.modifiedAt ? `${title} · ${new Date(draft.modifiedAt).toLocaleString()}` : title}
+            onClick={() => void openRecentDraft(draft.id)}>
+            <FileText size={14} /><span>{title}</span><small>草稿</small>
+          </button>;
+        })}
+      </section>}
+      {recentFiles.length > 0 && <section aria-label="最近打开">
+        <h2 className="recent-panel__heading">最近打开</h2>
+        {recentFiles.map((path) => <button key={path} type="button" className="recent-panel__item" aria-current={activeTabId === path ? 'true' : undefined}
+          title={path} onClick={() => void openFileByPath(path)}>
+          <FileCode size={14} /><span>{path.split(/[/\\]/).pop()}</span>
+          {tabs.some((tab) => tab.id === path && tab.isDirty) && <small>未保存</small>}
+        </button>)}
+      </section>}
+    </div>
+  );
+}
 
 /** 打开（或激活）一个标签页 */
 async function openNote(path: string, title: string) {
@@ -297,7 +342,7 @@ const SidebarImpl: React.FC = () => {
     <aside ref={asideRef} className="sidebar" style={{ width: sidebarWidth }}>
       <div ref={handleRef} className="sidebar-resize-handle" onPointerDown={onHandlePointerDown} onPointerMove={onHandlePointerMove} onPointerUp={onHandlePointerUp} title="拖动调整宽度" />
       <div className="sidebar-content" onContextMenu={sidebarTab === 'files' ? openRootMenu : undefined}>
-        {sidebarTab === 'outline' ? (
+        {sidebarTab === 'recent' ? <RecentFiles /> : sidebarTab === 'outline' ? (
           <div className="catalog-view">
             {outline.length === 0 ? <div className="empty-state">这篇文档还没有标题</div> : outline.map((item) => <OutlineItem key={item.id} node={item} />)}
           </div>

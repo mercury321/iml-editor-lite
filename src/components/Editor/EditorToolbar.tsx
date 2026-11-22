@@ -2,7 +2,7 @@ import React from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   Bold, Italic, Underline as UnderlineIcon, Code, Sigma, Table as TableIcon, Image as ImageIcon,
-  Type, ListOrdered, List, SquareCheck, Quote, Link as LinkIcon, Activity, FileCode,
+  Type, ListOrdered, List, SquareCheck, Quote, Link as LinkIcon, Activity, FileCode, Strikethrough,
 } from 'lucide-react';
 
 interface Props {
@@ -25,6 +25,9 @@ export const EditorToolbar: React.FC<Props> = ({
   onInsertTable, onInsertImage, onInsertLink, onInsertMermaid, onInsertSVG,
 }) => {
   const active = (name: string, attrs?: Record<string, unknown>) => (editor.isActive(name, attrs) ? 'active' : '');
+  const isMac = window.api.app.platform === 'darwin';
+  const modHint = isMac ? '⌘' : 'Ctrl+';
+  const shiftModHint = isMac ? '⌘⇧' : 'Ctrl+Shift+';
   return (
     <div className="tiptap-toolbar">
       <div className="toolbar-group">
@@ -35,9 +38,10 @@ export const EditorToolbar: React.FC<Props> = ({
       </div>
       <Divider />
       <div className="toolbar-group">
-        <button type="button" className={`toolbar-icon-btn ${active('bold')}`} onClick={() => editor.chain().focus().toggleBold().run()} title="加粗 (⌘B)"><Bold size={16} /></button>
-        <button type="button" className={`toolbar-icon-btn ${active('italic')}`} onClick={() => editor.chain().focus().toggleItalic().run()} title="倾斜 (⌘I)"><Italic size={16} /></button>
-        <button type="button" className={`toolbar-icon-btn ${active('underline')}`} onClick={() => editor.chain().focus().toggleUnderline().run()} title="下划线 (⌘U)"><UnderlineIcon size={16} /></button>
+        <button type="button" className={`toolbar-icon-btn ${active('bold')}`} onClick={() => editor.chain().focus().toggleBold().run()} title={`加粗 (${modHint}B)`}><Bold size={16} /></button>
+        <button type="button" className={`toolbar-icon-btn ${active('italic')}`} onClick={() => editor.chain().focus().toggleItalic().run()} title={`倾斜 (${modHint}I)`}><Italic size={16} /></button>
+        <button type="button" className={`toolbar-icon-btn ${active('underline')}`} onClick={() => editor.chain().focus().toggleUnderline().run()} title={`下划线 (${modHint}U)`}><UnderlineIcon size={16} /></button>
+        <button type="button" className={`toolbar-icon-btn ${active('strike')}`} onClick={() => editor.chain().focus().toggleStrike().run()} title={`删除线 (${shiftModHint}X)`}><Strikethrough size={16} /></button>
       </div>
       <Divider />
       <div className="toolbar-group">
@@ -47,13 +51,13 @@ export const EditorToolbar: React.FC<Props> = ({
       </div>
       <Divider />
       <div className="toolbar-group">
-        <button type="button" className={`toolbar-icon-btn ${active('code')}`} onClick={() => editor.chain().focus().toggleCode().run()} title="行内代码 (⌘`)"><Code size={16} /></button>
+        <button type="button" className={`toolbar-icon-btn ${active('code')}`} onClick={() => editor.chain().focus().toggleCode().run()} title={`行内代码 (${modHint}反引号)`}><Code size={16} /></button>
         <button type="button" className={`toolbar-icon-btn ${active('codeBlock')}`} onClick={onToggleCodeBlock} title="代码块"><FileCode size={16} /></button>
         <button type="button" className={`toolbar-icon-btn ${active('blockquote')}`} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="引用"><Quote size={16} /></button>
         <button type="button" className="toolbar-icon-btn" onClick={() => editor.chain().focus().insertContent('$x = y^2$').run()} title="数学公式"><Sigma size={16} /></button>
         <button type="button" className={`toolbar-icon-btn ${active('table')}`} onClick={onInsertTable} title="插入表格"><TableIcon size={16} /></button>
         <button type="button" className="toolbar-icon-btn" onClick={onInsertImage} title="插入图片"><ImageIcon size={16} /></button>
-        <button type="button" className={`toolbar-icon-btn ${active('link')}`} onClick={onInsertLink} title="插入链接 (⌘K)"><LinkIcon size={16} /></button>
+        <button type="button" className={`toolbar-icon-btn ${active('link')}`} onClick={onInsertLink} title={`插入链接 (${modHint}K)`}><LinkIcon size={16} /></button>
         <Divider />
         <button type="button" className="toolbar-icon-btn" onClick={onInsertMermaid} title="插入 Mermaid 图表"><Activity size={16} color="var(--color-accent-indigo)" /></button>
         <button type="button" className="toolbar-icon-btn" onClick={onInsertSVG} title="插入 SVG 组件"><FileCode size={16} color="var(--color-accent-orange)" /></button>

@@ -529,6 +529,13 @@
 /* ── 侧边栏树（从内联样式收口） ── */
 .sidebar { position: relative; }
 .sidebar-content { padding: 12px 0; }
+.recent-panel { display: grid; gap: 14px; padding: 0 8px; }
+.recent-panel__heading { padding: 4px 8px; color: var(--text-muted); font-size: 11px; font-weight: 600; }
+.recent-panel__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--text-secondary); font: inherit; text-align: left; cursor: pointer; }
+.recent-panel__item:hover, .recent-panel__item[aria-current] { background: var(--bg-hover-editor); color: var(--text-primary); }
+.recent-panel__item > svg, .recent-panel__item > small { flex-shrink: 0; }
+.recent-panel__item > span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.recent-panel__item > small { color: var(--text-muted); }
 .tree-item--selected { background-color: rgba(127, 127, 127, 0.12); }
 .tree-item--flat { padding-left: 8px; }
 .tree-item__spacer { width: 14px; display: inline-block; }

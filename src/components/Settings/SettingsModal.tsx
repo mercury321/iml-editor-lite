@@ -219,13 +219,13 @@ export const SettingsModal: React.FC<Props> = ({ onClose }) => {
                 <div className="settings-row">
                   <div><div className="settings-row__title">行距</div></div>
                   <div className="settings-range">
-                    <input type="range" min={1.3} max={2.4} step={0.1} value={local.editorPrefs.lineHeight} onChange={(e) => setPrefs({ lineHeight: Number(e.target.value) })} />
-                    <span className="settings-range__value">{local.editorPrefs.lineHeight.toFixed(1)}</span>
+                    <input type="range" min={1.3} max={2.4} step={0.05} value={local.editorPrefs.lineHeight} onChange={(e) => setPrefs({ lineHeight: Number(e.target.value) })} aria-label="行距" />
+                    <span className="settings-range__value">{local.editorPrefs.lineHeight.toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="settings-divider" />
                 <div className="settings-row">
-                  <div><div className="settings-row__title">页面宽度</div></div>
+                  <div><div className="settings-row__title">正文宽度</div></div>
                   <div className="seg-switch">
                     {(Object.keys(PAGE_WIDTHS) as EditorPrefs['pageWidth'][]).map((id) => (
                       <button key={id} onClick={() => setPrefs({ pageWidth: id })} className={`seg-switch__btn ${local.editorPrefs.pageWidth === id ? 'seg-switch__btn--active' : ''}`}>{PAGE_WIDTHS[id].label}</button>

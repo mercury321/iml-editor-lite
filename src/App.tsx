@@ -3,7 +3,7 @@ import { TitleBar } from './components/TitleBar/TitleBar';
 import { Sidebar, ActivityBar } from './components/Sidebar/Sidebar';
 import { EditorArea } from './components/Editor/EditorArea';
 import { StatusBar } from './components/StatusBar/StatusBar';
-import { useAppStore, THEME_PRESETS, clearSessionAndReload, type DialogId } from './stores/appStore';
+import { useAppStore, THEME_PRESETS, clearSessionAndReload, keepDraftAndClose, type DialogId } from './stores/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import AboutModal from './components/About/AboutModal';
 import ShortcutsModal from './components/Help/ShortcutsModal';
@@ -110,6 +110,13 @@ const App: React.FC = () => {
       // Alt+Cmd+F：查找并替换（⌘H 在 macOS 上被系统「隐藏应用」占用，不能用）
       // 注意 macOS 下按住 ⌥ 时 e.key 会变成特殊字符，必须用 e.code 判断
       if (modKey && e.altKey && e.code === 'KeyF') {
+        e.preventDefault();
+        toggleReplace();
+        return;
+      }
+
+      // Windows 常用的 Ctrl+H：查找并替换；Mac 保留 ⌥⌘F。
+      if (!isMac && modKey && !e.altKey && e.code === 'KeyH') {
         e.preventDefault();
         toggleReplace();
         return;
@@ -308,9 +315,7 @@ const App: React.FC = () => {
     const init = async () => {
       try {
         await loadSettings();
-        if (useAppStore.getState().startupBehavior === 'restore') {
-          await loadSession();
-        }
+        await loadSession(useAppStore.getState().startupBehavior === 'restore');
       } catch (e) {
         console.error('Init failed:', e);
       }
@@ -380,6 +385,7 @@ const App: React.FC = () => {
           // 批量关闭时逐个问，顺带说清楚后面还排着几个，免得用户以为点不完
           message={`文件 "${tabs.find(t => t.id === tabToClose)?.title}" 已修改，是否在关闭前保存？${pendingCloseIds.length > 0 ? `（后面还有 ${pendingCloseIds.length} 个待处理）` : ''}`}
           onConfirm={handleConfirmSave}
+          onKeepDraft={window.api.drafts && tabToClose.startsWith('new-') ? () => void keepDraftAndClose(tabToClose) : undefined}
           onDiscard={() => {
             closeTab(tabToClose);
             useAppStore.getState().advanceCloseQueue();

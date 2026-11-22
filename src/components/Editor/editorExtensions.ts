@@ -101,5 +101,6 @@ export const editorExtensions = [
   }),
   Placeholder.configure({
     placeholder: '在此开始你的写作...',
+    showOnlyCurrent: false,
   })
 ];

@@ -25,6 +25,8 @@ use tauri::{
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_window_state::StateFlags;
 
+mod drafts;
+
 const DOC_EXTS: [&str; 5] = ["md", "markdown", "mdown", "mkd", "txt"];
 /// 翻最近的发布，由前端按 lite-v 前缀认出自己的版本（拆成独立仓库之前就是这个前缀，沿用）
 const RELEASES_API: &str = "https://api.github.com/repos/imoling/iml-editor-lite/releases?per_page=40";
@@ -1107,6 +1109,7 @@ pub fn run() {
                 .build(),
         )
         .manage(AppState::default())
+        .manage(drafts::DraftLock::default())
         .register_asynchronous_uri_scheme_protocol("iml-asset", |_ctx, request, responder| {
             // 读盘放到别的线程去：一篇文档里几十张图不该卡住界面
             std::thread::spawn(move || responder.respond(serve_asset(&request)));
@@ -1135,6 +1138,10 @@ pub fn run() {
             is_portable,
             smoke_export_dir,
             settings_get,
+            drafts::draft_list,
+            drafts::draft_read,
+            drafts::draft_save,
+            drafts::draft_remove,
             settings_save,
             folder_watch,
             open_files_watch,
